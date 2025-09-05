@@ -102,10 +102,11 @@ public class PhotoContext : DbContext
             // Timestamp configurations with UTC defaults
             entity.Property(e => e.CreatedAt)
                   .IsRequired()
-                  .HasDefaultValueSql("UTC_TIMESTAMP()")
+                  .HasDefaultValueSql("CURRENT_TIMESTAMP")
                   .HasComment("Photo upload timestamp (UTC)");
 
             entity.Property(e => e.UpdatedAt)
+                  .HasDefaultValueSql("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
                   .HasComment("Last metadata update timestamp (UTC)");
 
             entity.Property(e => e.DeletedAt)
