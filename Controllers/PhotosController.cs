@@ -11,10 +11,10 @@ namespace PhotoService.Controllers;
 /// Photo Controller - RESTful API for photo management operations
 /// Handles photo upload, retrieval, update, and deletion with JWT authentication
 /// Standard REST conventions with comprehensive error handling
+/// Demo mode support for testing without authentication
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
-[Authorize] // Require authentication for all endpoints
 public class PhotosController : ControllerBase
 {
     private readonly IPhotoService _photoService;
@@ -31,9 +31,63 @@ public class PhotosController : ControllerBase
     }
 
     /// <summary>
+    /// Demo photo upload endpoint for testing without authentication
+    /// POST /api/photos/demo
+    /// Bypasses all authentication for development testing
+    /// </summary>
+    [HttpPost("demo")]
+    [AllowAnonymous]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> DemoUploadPhoto([FromForm] PhotoUploadDto uploadDto)
+    {
+        try
+        {
+            const int demoUserId = 1; // Hardcoded demo user ID
+            
+            _logger.LogInformation("Demo photo upload request for user {UserId}", demoUserId);
+
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState
+                    .SelectMany(x => x.Value?.Errors?.Select(e => e.ErrorMessage) ?? [])
+                    .ToList();
+                
+                return BadRequest($"Validation failed: {string.Join(", ", errors)}");
+            }
+
+            if (uploadDto.Photo == null || uploadDto.Photo.Length == 0)
+            {
+                return BadRequest("No photo file provided");
+            }
+
+            var result = await _photoService.UploadPhotoAsync(demoUserId, uploadDto);
+
+            if (!result.Success)
+            {
+                _logger.LogWarning("Demo photo upload failed: {Error}", result.ErrorMessage);
+                return BadRequest(result.ErrorMessage);
+            }
+
+            _logger.LogInformation("Demo photo uploaded successfully, photo ID {PhotoId}", result.Photo?.Id);
+
+            return CreatedAtAction(
+                nameof(GetPhoto), 
+                new { id = result.Photo!.Id }, 
+                result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error during demo photo upload");
+            return StatusCode(StatusCodes.Status500InternalServerError, 
+                "An error occurred while uploading the photo");
+        }
+    }
+
+    /// <summary>
     /// Upload a new photo for the authenticated user
     /// POST /api/photos
     /// Handles multipart form data with photo file and metadata
+    /// Demo mode: Uses hardcoded user ID for testing
     /// </summary>
     /// <param name="uploadDto">Photo upload request with file and metadata</param>
     /// <returns>Upload result with photo details or error information</returns>
@@ -134,6 +188,11 @@ public class PhotosController : ControllerBase
 
             return Ok(photos);
         }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning("Unauthorized access attempt for user photos: {Message}", ex.Message);
+            return Unauthorized("Authentication required");
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving user photos");
@@ -168,6 +227,11 @@ public class PhotosController : ControllerBase
             }
 
             return Ok(photo);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning("Unauthorized access attempt for photo {PhotoId}: {Message}", id, ex.Message);
+            return Unauthorized("Authentication required");
         }
         catch (Exception ex)
         {
@@ -219,7 +283,6 @@ public class PhotosController : ControllerBase
     /// <param name="size">Image size (full, medium, thumbnail)</param>
     /// <returns>Image file stream</returns>
     [HttpGet("{id:int}/image")]
-    [AllowAnonymous] // Allow anonymous access for public photo viewing
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(string), StatusCodes.Status500InternalServerError)]
@@ -270,7 +333,6 @@ public class PhotosController : ControllerBase
     /// <param name="id">Photo identifier</param>
     /// <returns>Thumbnail image file</returns>
     [HttpGet("{id:int}/thumbnail")]
-    [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetPhotoThumbnail(int id)
@@ -286,7 +348,6 @@ public class PhotosController : ControllerBase
     /// <param name="id">Photo identifier</param>
     /// <returns>Medium-size image file</returns>
     [HttpGet("{id:int}/medium")]
-    [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetPhotoMedium(int id)
@@ -587,13 +648,29 @@ public class PhotosController : ControllerBase
     // ================================
 
     /// <summary>
-    /// Extract user ID from JWT claims
-    /// Standard JWT authentication pattern
+    /// Extract user ID from JWT claims or use demo user ID
+    /// Standard JWT authentication pattern with demo mode support
     /// </summary>
     /// <returns>Current user's ID</returns>
     /// <exception cref="UnauthorizedAccessException">If user ID cannot be determined</exception>
     private int GetCurrentUserId()
     {
+        var isDemoMode = Environment.GetEnvironmentVariable("DEMO_MODE") == "true";
+        
+        if (isDemoMode)
+        {
+            // Demo mode: Use hardcoded user ID for testing
+            _logger.LogInformation("Using demo mode user ID: 1");
+            return 1;
+        }
+
+        // Production mode: Extract from JWT claims
+        if (User?.Identity?.IsAuthenticated != true)
+        {
+            _logger.LogError("User is not authenticated");
+            throw new UnauthorizedAccessException("User is not authenticated");
+        }
+
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ??
                          User.FindFirst("sub")?.Value ??
                          User.FindFirst("userId")?.Value;

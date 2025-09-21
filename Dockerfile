@@ -54,14 +54,14 @@ USER photoservice
 
 # Configure ASP.NET Core
 ENV ASPNETCORE_ENVIRONMENT=Production
-ENV ASPNETCORE_URLS=http://+:5003
+ENV ASPNETCORE_URLS=http://+:8084
 
 # Health check endpoint
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:5003/health || exit 1
+    CMD curl -f http://localhost:8084/health || exit 1
 
 # Expose port
-EXPOSE 5003
+EXPOSE 8084
 
 # ================================
 # APPLICATION STARTUP
@@ -74,7 +74,7 @@ ENTRYPOINT ["dotnet", "PhotoService.dll"]
 # docker build -t dating-app/photo-service .
 
 # Run command:
-# docker run -d -p 5003:5003 --name photo-service \
+# docker run -d -p 8084:8084 --name photo-service \
 #   -e ConnectionStrings__DefaultConnection="Server=mysql;Database=DatingApp_Photos;Uid=root;Pwd=password123;" \
 #   -e JwtSettings__SecretKey="your-production-secret-key" \
 #   dating-app/photo-service

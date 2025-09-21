@@ -15,6 +15,7 @@ public class PhotoService : IPhotoService
     private readonly IImageProcessingService _imageProcessing;
     private readonly IStorageService _storage;
     private readonly ILogger<PhotoService> _logger;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
     /// <summary>
     /// Constructor with dependency injection
@@ -24,12 +25,14 @@ public class PhotoService : IPhotoService
         PhotoContext context,
         IImageProcessingService imageProcessing,
         IStorageService storage,
-        ILogger<PhotoService> logger)
+        ILogger<PhotoService> logger,
+        IHttpContextAccessor httpContextAccessor)
     {
         _context = context;
         _imageProcessing = imageProcessing;
         _storage = storage;
         _logger = logger;
+        _httpContextAccessor = httpContextAccessor;
     }
 
     /// <summary>
@@ -206,12 +209,7 @@ public class PhotoService : IPhotoService
                 FileSizeBytes = photo.FileSizeBytes,
                 ModerationStatus = photo.ModerationStatus,
                 QualityScore = photo.QualityScore,
-                Urls = new PhotoUrlsDto
-                {
-                    Full = $"/api/photos/{photo.Id}/image",
-                    Medium = $"/api/photos/{photo.Id}/medium",
-                    Thumbnail = $"/api/photos/{photo.Id}/thumbnail"
-                }
+                Urls = GeneratePhotoUrls(photo.Id)
             };
 
             _logger.LogInformation("Photo upload completed successfully for user {UserId}, photo ID {PhotoId}", 
@@ -251,12 +249,7 @@ public class PhotoService : IPhotoService
             FileSizeBytes = p.FileSizeBytes,
             ModerationStatus = p.ModerationStatus,
             QualityScore = p.QualityScore,
-            Urls = new PhotoUrlsDto
-            {
-                Full = $"/api/photos/{p.Id}/image",
-                Medium = $"/api/photos/{p.Id}/medium",
-                Thumbnail = $"/api/photos/{p.Id}/thumbnail"
-            }
+            Urls = GeneratePhotoUrls(p.Id)
         }).ToList();
 
         var primaryPhoto = photoResponses.FirstOrDefault(p => p.IsPrimary);
@@ -296,12 +289,7 @@ public class PhotoService : IPhotoService
             FileSizeBytes = photo.FileSizeBytes,
             ModerationStatus = photo.ModerationStatus,
             QualityScore = photo.QualityScore,
-            Urls = new PhotoUrlsDto
-            {
-                Full = $"/api/photos/{photo.Id}/image",
-                Medium = $"/api/photos/{photo.Id}/medium",
-                Thumbnail = $"/api/photos/{photo.Id}/thumbnail"
-            }
+            Urls = GeneratePhotoUrls(photo.Id)
         };
     }
 
@@ -332,12 +320,7 @@ public class PhotoService : IPhotoService
             FileSizeBytes = photo.FileSizeBytes,
             ModerationStatus = photo.ModerationStatus,
             QualityScore = photo.QualityScore,
-            Urls = new PhotoUrlsDto
-            {
-                Full = $"/api/photos/{photo.Id}/image",
-                Medium = $"/api/photos/{photo.Id}/medium",
-                Thumbnail = $"/api/photos/{photo.Id}/thumbnail"
-            }
+            Urls = GeneratePhotoUrls(photo.Id)
         };
     }
 
@@ -510,29 +493,25 @@ public class PhotoService : IPhotoService
             .OrderBy(p => p.CreatedAt)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
-            .Select(p => new PhotoResponseDto
-            {
-                Id = p.Id,
-                UserId = p.UserId,
-                OriginalFileName = p.OriginalFileName,
-                DisplayOrder = p.DisplayOrder,
-                IsPrimary = p.IsPrimary,
-                CreatedAt = p.CreatedAt,
-                Width = p.Width,
-                Height = p.Height,
-                FileSizeBytes = p.FileSizeBytes,
-                ModerationStatus = p.ModerationStatus,
-                QualityScore = p.QualityScore,
-                Urls = new PhotoUrlsDto
-                {
-                    Full = $"/api/photos/{p.Id}/image",
-                    Medium = $"/api/photos/{p.Id}/medium",
-                    Thumbnail = $"/api/photos/{p.Id}/thumbnail"
-                }
-            })
             .ToListAsync();
 
-        return (photos, totalCount);
+        var photoResponses = photos.Select(p => new PhotoResponseDto
+        {
+            Id = p.Id,
+            UserId = p.UserId,
+            OriginalFileName = p.OriginalFileName,
+            DisplayOrder = p.DisplayOrder,
+            IsPrimary = p.IsPrimary,
+            CreatedAt = p.CreatedAt,
+            Width = p.Width,
+            Height = p.Height,
+            FileSizeBytes = p.FileSizeBytes,
+            ModerationStatus = p.ModerationStatus,
+            QualityScore = p.QualityScore,
+            Urls = GeneratePhotoUrls(p.Id)
+        }).ToList();
+
+        return (photoResponses, totalCount);
     }
 
     /// <summary>
@@ -593,6 +572,32 @@ public class PhotoService : IPhotoService
     private static string DetermineModerationStatus(int qualityScore)
     {
         return qualityScore >= 70 ? Models.ModerationStatus.AutoApproved : Models.ModerationStatus.PendingReview;
+    }
+
+    /// <summary>
+    /// Generate complete URLs for photo access
+    /// </summary>
+    private PhotoUrlsDto GeneratePhotoUrls(int photoId)
+    {
+        var request = _httpContextAccessor.HttpContext?.Request;
+        if (request == null)
+        {
+            // Fallback to relative URLs if no HTTP context
+            return new PhotoUrlsDto
+            {
+                Full = $"/api/photos/{photoId}/image",
+                Medium = $"/api/photos/{photoId}/medium",
+                Thumbnail = $"/api/photos/{photoId}/thumbnail"
+            };
+        }
+
+        var baseUrl = $"{request.Scheme}://{request.Host}";
+        return new PhotoUrlsDto
+        {
+            Full = $"{baseUrl}/api/photos/{photoId}/image",
+            Medium = $"{baseUrl}/api/photos/{photoId}/medium",
+            Thumbnail = $"{baseUrl}/api/photos/{photoId}/thumbnail"
+        };
     }
 
     /// <summary>

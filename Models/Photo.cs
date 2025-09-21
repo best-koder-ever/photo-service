@@ -87,7 +87,7 @@ public class Photo
     /// UTC time for consistency across timezones
     /// </summary>
     [Required]
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; }
 
     /// <summary>
     /// Last update timestamp
