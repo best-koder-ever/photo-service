@@ -119,6 +119,57 @@ public interface IPhotoService
     /// <param name="notes">Moderation notes</param>
     /// <returns>Success status</returns>
     Task<bool> UpdateModerationStatusAsync(int photoId, string status, string? notes = null);
+
+    // ================================
+    // ADVANCED PRIVACY FEATURES
+    // ================================
+
+    /// <summary>
+    /// Upload photo with advanced privacy settings
+    /// Enhanced upload with privacy level, blur settings, and content moderation
+    /// </summary>
+    /// <param name="userId">User identifier</param>
+    /// <param name="uploadDto">Privacy-enabled upload request</param>
+    /// <returns>Upload result with privacy processing details</returns>
+    Task<PrivacyPhotoUploadResultDto> UploadPhotoWithPrivacyAsync(int userId, PrivacyPhotoUploadDto uploadDto);
+
+    /// <summary>
+    /// Update photo privacy settings
+    /// Change privacy level, blur intensity, and match requirements
+    /// </summary>
+    /// <param name="photoId">Photo identifier</param>
+    /// <param name="userId">User identifier for authorization</param>
+    /// <param name="privacyDto">Privacy settings update</param>
+    /// <returns>Updated photo with new privacy settings</returns>
+    Task<PhotoResponseDto?> UpdatePhotoPrivacyAsync(int photoId, int userId, PhotoPrivacyUpdateDto privacyDto);
+
+    /// <summary>
+    /// Get photo with privacy controls applied
+    /// Returns appropriate version (original or blurred) based on privacy settings and user permissions
+    /// </summary>
+    /// <param name="photoId">Photo identifier</param>
+    /// <param name="requestingUserId">ID of user requesting access</param>
+    /// <param name="hasMatch">Whether requesting user has matched with photo owner</param>
+    /// <returns>Image data respecting privacy settings</returns>
+    Task<PrivacyImageResponseDto> GetPhotoWithPrivacyControlAsync(int photoId, string requestingUserId, bool hasMatch = false);
+
+    /// <summary>
+    /// Get blurred version of a photo
+    /// Always returns the blurred version regardless of privacy settings
+    /// </summary>
+    /// <param name="photoId">Photo identifier</param>
+    /// <returns>Blurred image data</returns>
+    Task<PrivacyImageResponseDto> GetBlurredPhotoAsync(int photoId);
+
+    /// <summary>
+    /// Regenerate blurred version of a photo
+    /// Useful when changing blur intensity or fixing processing issues
+    /// </summary>
+    /// <param name="photoId">Photo identifier</param>
+    /// <param name="userId">User identifier for authorization</param>
+    /// <param name="blurIntensity">New blur intensity (0.0 to 1.0)</param>
+    /// <returns>Processing result</returns>
+    Task<BlurRegenerationResultDto?> RegenerateBlurredPhotoAsync(int photoId, int userId, double blurIntensity);
 }
 
 /// <summary>
@@ -172,6 +223,57 @@ public interface IImageProcessingService
     /// <param name="stream">Image stream to analyze</param>
     /// <returns>Quality score from 1-100</returns>
     Task<int> CalculateQualityScoreAsync(Stream stream);
+
+    // ================================
+    // ADVANCED PRIVACY FEATURES
+    // ================================
+
+    /// <summary>
+    /// Generate a blurred version of the image for privacy protection
+    /// Creates professional-quality blur effect with configurable intensity
+    /// </summary>
+    /// <param name="originalImageData">Original image data</param>
+    /// <param name="originalFileName">Original file name</param>
+    /// <param name="blurIntensity">Blur intensity (0.0 to 1.0)</param>
+    /// <returns>Blurred filename or null if failed</returns>
+    Task<string?> GenerateBlurredImageAsync(byte[] originalImageData, string originalFileName, double blurIntensity = 0.8);
+
+    /// <summary>
+    /// Analyze image content for safety and appropriateness using ML.NET
+    /// Provides comprehensive content moderation for dating app photos
+    /// </summary>
+    /// <param name="imageData">Image data to analyze</param>
+    /// <param name="fileName">Original file name</param>
+    /// <returns>Content moderation analysis results</returns>
+    Task<ModerationAnalysis> AnalyzeContentSafetyAsync(byte[] imageData, string fileName);
+
+    /// <summary>
+    /// Process photo with privacy features: generate blurred version and perform content analysis
+    /// Complete processing pipeline for dating app privacy requirements
+    /// </summary>
+    /// <param name="originalImageData">Original image data</param>
+    /// <param name="originalFileName">Original file name</param>
+    /// <param name="privacyLevel">Privacy level (Public, Private, MatchOnly, VIP)</param>
+    /// <param name="blurIntensity">Blur intensity for private photos</param>
+    /// <returns>Privacy processing results</returns>
+    Task<PrivacyPhotoProcessingResult> ProcessPhotoWithPrivacyAsync(
+        byte[] originalImageData, 
+        string originalFileName, 
+        string privacyLevel,
+        double blurIntensity = 0.8);
+
+    /// <summary>
+    /// Get the appropriate image data based on privacy settings and user permissions
+    /// Controls what version of the image should be served to different users
+    /// </summary>
+    /// <param name="photo">Photo entity with privacy settings</param>
+    /// <param name="requestingUserId">ID of user requesting the image</param>
+    /// <param name="hasMatch">Whether requesting user has matched with photo owner</param>
+    /// <returns>Image data (original or blurred) or null if access denied</returns>
+    Task<byte[]?> GetImageWithPrivacyControlAsync(
+        Photo photo, 
+        string requestingUserId, 
+        bool hasMatch = false);
 }
 
 /// <summary>

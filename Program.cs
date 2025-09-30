@@ -3,6 +3,7 @@ using PhotoService.Data;
 using PhotoService.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using System.Security.Cryptography;
 using System.Text;
 using SixLabors.ImageSharp.Web.DependencyInjection;
 
@@ -66,36 +67,23 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// Database Configuration - MySQL or In-Memory based on demo mode
-var isDemoMode = Environment.GetEnvironmentVariable("DEMO_MODE") == "true";
+// Database Configuration - PostgreSQL for all environments (superior for dating apps)
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? 
+                      Environment.GetEnvironmentVariable("DATABASE_URL") ??
+                      "Host=localhost;Database=photos_db;Username=postgres;Password=postgres";
 
-if (isDemoMode)
-{
-    // Use in-memory database for demo mode
-    builder.Services.AddDbContext<PhotoContext>(options =>
-        options.UseInMemoryDatabase("DemoPhotosDb"));
-}
-else
-{
-    // Use MySQL for production
-    builder.Services.AddDbContext<PhotoContext>(options =>
-        options.UseMySql(
-            builder.Configuration.GetConnectionString("DefaultConnection"),
-            new MySqlServerVersion(new Version(8, 0, 32)),
-            mySqlOptions =>
-            {
-                mySqlOptions.EnableRetryOnFailure(
-                    maxRetryCount: 3,
-                    maxRetryDelay: TimeSpan.FromSeconds(5),
-                    errorNumbersToAdd: null);
-            }
-        ));
-}
+builder.Services.AddDbContext<PhotoContext>(options =>
+    options.UseNpgsql(connectionString, npgsqlOptions =>
+    {
+        npgsqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 3,
+            maxRetryDelay: TimeSpan.FromSeconds(5),
+            errorCodesToAdd: null);
+        // Enable PostGIS for geospatial queries (useful for location-based features)
+        npgsqlOptions.UseNetTopologySuite();
+    }));
 
-// JWT Authentication - Standard Bearer Token Configuration
-var jwtSettings = builder.Configuration.GetSection("JwtSettings");
-var secretKey = jwtSettings["SecretKey"] ?? throw new ArgumentNullException("JWT SecretKey is required");
-
+// JWT Authentication - RSA Public Key Configuration to match AuthService
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -103,15 +91,16 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
+    // Use demo configuration (can be enhanced later for production)
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
         ValidateAudience = true,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-        ValidIssuer = jwtSettings["Issuer"],
-        ValidAudience = jwtSettings["Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey))
+        ValidIssuer = "DatingApp-Issuer",
+        ValidAudience = "DatingApp-Audience",
+        IssuerSigningKey = GetPublicKey()
     };
 });
 
@@ -119,10 +108,8 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 
 // ImageSharp Configuration - Industry standard image processing
-if (!isDemoMode)
-{
-    builder.Services.AddImageSharp();
-}
+// Enable for all environments with PostgreSQL
+builder.Services.AddImageSharp();
 
 // Custom Services - Dependency Injection
 builder.Services.AddScoped<IPhotoService, PhotoService.Services.PhotoService>();
@@ -194,11 +181,7 @@ app.UseAuthorization();
 app.UseStaticFiles();
 
 // ImageSharp middleware for image processing
-var isDemoModeApp = Environment.GetEnvironmentVariable("DEMO_MODE") == "true";
-if (!isDemoModeApp)
-{
-    app.UseImageSharp();
-}
+app.UseImageSharp();
 
 // API Controllers
 app.MapControllers();
@@ -212,12 +195,8 @@ if (app.Environment.IsDevelopment())
     using (var scope = app.Services.CreateScope())
     {
         var context = scope.ServiceProvider.GetRequiredService<PhotoContext>();
-        // Only ensure created if not in demo mode (in-memory databases are auto-created)
-        var isDemoModeRuntime = Environment.GetEnvironmentVariable("DEMO_MODE") == "true";
-        if (!isDemoModeRuntime)
-        {
-            context.Database.EnsureCreated();
-        }
+        // Ensure database is created and migrated
+        context.Database.EnsureCreated();
     }
 }
 
@@ -230,3 +209,37 @@ if (!string.IsNullOrEmpty(urls))
 }
 
 app.Run();
+
+// ================================
+// RSA KEY MANAGEMENT
+// Public key validation for JWT tokens from AuthService
+// ================================
+
+static RsaSecurityKey GetPublicKey()
+{
+    try
+    {
+        var publicKeyPath = "public.key";
+        if (File.Exists(publicKeyPath))
+        {
+            var publicKeyPem = File.ReadAllText(publicKeyPath);
+            var rsa = RSA.Create();
+            rsa.ImportFromPem(publicKeyPem);
+            return new RsaSecurityKey(rsa);
+        }
+        else
+        {
+            // For demo mode or when no key file exists, create a temporary key
+            // In production, this should always use the proper public key
+            var rsa = RSA.Create(2048);
+            return new RsaSecurityKey(rsa);
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error loading public key: {ex.Message}");
+        // Fallback to temporary key
+        var rsa = RSA.Create(2048);
+        return new RsaSecurityKey(rsa);
+    }
+}

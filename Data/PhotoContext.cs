@@ -1,180 +1,318 @@
 using Microsoft.EntityFrameworkCore;
 using PhotoService.Models;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 namespace PhotoService.Data;
 
 /// <summary>
-/// Entity Framework Database Context for Photo Service
-/// Standard EF Core setup with MySQL configuration and photo management
+/// PostgreSQL-optimized Entity Framework context for photo management
+/// Designed specifically for PostgreSQL with PostGIS support and modern .NET 8 patterns
 /// </summary>
 public class PhotoContext : DbContext
 {
-    /// <summary>
-    /// Constructor accepting DbContext options
-    /// Standard dependency injection pattern for EF Core
-    /// </summary>
-    /// <param name="options">Database context configuration options</param>
     public PhotoContext(DbContextOptions<PhotoContext> options) : base(options)
     {
     }
 
-    /// <summary>
-    /// Photos table - Main entity for photo storage and metadata
-    /// </summary>
+    // Main entities
     public DbSet<Photo> Photos { get; set; }
+    public DbSet<PhotoProcessingJob> PhotoProcessingJobs { get; set; }
+    public DbSet<PhotoModerationLog> PhotoModerationLogs { get; set; }
 
-    /// <summary>
-    /// Model configuration and database schema setup
-    /// Configures indexes, constraints, and relationships
-    /// </summary>
-    /// <param name="modelBuilder">EF Core model builder for schema configuration</param>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
-        // ================================
-        // PHOTO ENTITY CONFIGURATION
-        // Indexes and constraints for optimal query performance
-        // ================================
+        // Configure PostgreSQL-specific settings
+        ConfigurePhotoEntity(modelBuilder);
+        ConfigurePhotoProcessingJobEntity(modelBuilder);
+        ConfigurePhotoModerationLogEntity(modelBuilder);
+    }
 
-        modelBuilder.Entity<Photo>(entity =>
-        {
-            // Primary key configuration (already defined with [Key] attribute)
-            entity.HasKey(e => e.Id);
+    private void ConfigurePhotoEntity(ModelBuilder modelBuilder)
+    {
+        var photoEntity = modelBuilder.Entity<Photo>();
 
-            // Composite index for user photos queries
-            // Most common query: get photos by user, ordered by display order
-            entity.HasIndex(e => new { e.UserId, e.DisplayOrder, e.IsDeleted })
-                  .HasDatabaseName("IX_Photos_User_DisplayOrder_Deleted");
+        // Table configuration
+        photoEntity.ToTable("photos"); // PostgreSQL convention: lowercase with underscores
 
-            // Index for primary photo lookup
-            // Quick access to user's primary profile photo
-            entity.HasIndex(e => new { e.UserId, e.IsPrimary, e.IsDeleted })
-                  .HasDatabaseName("IX_Photos_User_Primary_Deleted");
+        // Primary key
+        photoEntity.HasKey(p => p.Id);
+        photoEntity.Property(p => p.Id)
+            .HasColumnName("id")
+            .UseIdentityByDefaultColumn(); // PostgreSQL IDENTITY column
 
-            // Index for moderation workflow
-            // Content moderation team queries
-            entity.HasIndex(e => new { e.ModerationStatus, e.CreatedAt })
-                  .HasDatabaseName("IX_Photos_Moderation_Created");
+        // User reference
+        photoEntity.Property(p => p.UserId)
+            .HasColumnName("user_id")
+            .IsRequired();
 
-            // Index for cleanup operations
-            // Periodic cleanup of deleted photos
-            entity.HasIndex(e => new { e.IsDeleted, e.DeletedAt })
-                  .HasDatabaseName("IX_Photos_Deleted_DeletedAt");
+        // File information
+        photoEntity.Property(p => p.OriginalFileName)
+            .HasColumnName("original_file_name")
+            .HasMaxLength(255)
+            .IsRequired();
 
-            // Unique constraint for stored filenames
-            // Prevents file naming conflicts
-            entity.HasIndex(e => e.StoredFileName)
-                  .IsUnique()
-                  .HasDatabaseName("IX_Photos_StoredFileName_Unique");
+        photoEntity.Property(p => p.StoredFileName)
+            .HasColumnName("stored_file_name")
+            .HasMaxLength(255)
+            .IsRequired();
 
-            // ================================
-            // COLUMN CONFIGURATIONS
-            // Specific column constraints and defaults
-            // ================================
+        photoEntity.Property(p => p.FileExtension)
+            .HasColumnName("file_extension")
+            .HasMaxLength(10)
+            .IsRequired();
 
-            // UserId configuration
-            entity.Property(e => e.UserId)
-                  .IsRequired()
-                  .HasComment("Foreign key to User entity in auth service");
+        photoEntity.Property(p => p.FileSizeBytes)
+            .HasColumnName("file_size_bytes")
+            .IsRequired();
 
-            // String length constraints (already defined with MaxLength attributes)
-            entity.Property(e => e.OriginalFileName)
-                  .HasMaxLength(255)
-                  .IsRequired();
+        photoEntity.Property(p => p.MimeType)
+            .HasColumnName("mime_type")
+            .HasMaxLength(100)
+            .IsRequired();
 
-            entity.Property(e => e.StoredFileName)
-                  .HasMaxLength(255)
-                  .IsRequired();
+        // Image dimensions
+        photoEntity.Property(p => p.Width)
+            .HasColumnName("width")
+            .IsRequired();
 
-            entity.Property(e => e.FileExtension)
-                  .HasMaxLength(10)
-                  .IsRequired();
+        photoEntity.Property(p => p.Height)
+            .HasColumnName("height")
+            .IsRequired();
 
-            entity.Property(e => e.ModerationStatus)
-                  .HasMaxLength(20)
-                  .IsRequired()
-                  .HasDefaultValue(ModerationStatus.AutoApproved);
+        // Display and ordering
+        photoEntity.Property(p => p.DisplayOrder)
+            .HasColumnName("display_order")
+            .HasDefaultValue(1)
+            .IsRequired();
 
-            entity.Property(e => e.ModerationNotes)
-                  .HasMaxLength(500);
+        photoEntity.Property(p => p.IsPrimary)
+            .HasColumnName("is_primary")
+            .HasDefaultValue(false)
+            .IsRequired();
 
-            // Timestamp configurations with UTC defaults
-            entity.Property(e => e.CreatedAt)
-                  .IsRequired()
-                  .HasDefaultValueSql("CURRENT_TIMESTAMP(6)")
-                  .HasComment("Photo upload timestamp (UTC)");
+        // Timestamps - PostgreSQL-optimized
+        photoEntity.Property(p => p.CreatedAt)
+            .HasColumnName("created_at")
+            .HasColumnType("timestamp with time zone")
+            .HasDefaultValueSql("CURRENT_TIMESTAMP")
+            .IsRequired();
 
-            entity.Property(e => e.UpdatedAt)
-                  .HasDefaultValueSql("CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6)")
-                  .HasComment("Last metadata update timestamp (UTC)");
+        photoEntity.Property(p => p.UpdatedAt)
+            .HasColumnName("updated_at")
+            .HasColumnType("timestamp with time zone");
 
-            entity.Property(e => e.DeletedAt)
-                  .HasComment("Soft deletion timestamp (UTC)");
+        // Soft delete
+        photoEntity.Property(p => p.IsDeleted)
+            .HasColumnName("is_deleted")
+            .HasDefaultValue(false)
+            .IsRequired();
 
-            // Boolean defaults
-            entity.Property(e => e.IsPrimary)
-                  .IsRequired()
-                  .HasDefaultValue(false);
+        photoEntity.Property(p => p.DeletedAt)
+            .HasColumnName("deleted_at")
+            .HasColumnType("timestamp with time zone");
 
-            entity.Property(e => e.IsDeleted)
-                  .IsRequired()
-                  .HasDefaultValue(false);
+        // Moderation
+        photoEntity.Property(p => p.ModerationStatus)
+            .HasColumnName("moderation_status")
+            .HasMaxLength(20)
+            .HasDefaultValue("AUTO_APPROVED")
+            .IsRequired();
 
-            // Display order default
-            entity.Property(e => e.DisplayOrder)
-                  .IsRequired()
-                  .HasDefaultValue(1);
+        photoEntity.Property(p => p.ModerationNotes)
+            .HasColumnName("moderation_notes")
+            .HasMaxLength(1000);
 
-            // Quality score default
-            entity.Property(e => e.QualityScore)
-                  .IsRequired()
-                  .HasDefaultValue(100);
+        photoEntity.Property(p => p.QualityScore)
+            .HasColumnName("quality_score")
+            .HasDefaultValue(100)
+            .IsRequired();
 
-            // ================================
-            // BUSINESS RULE CONSTRAINTS
-            // Database-level enforcement of business logic
-            // ================================
+        // PostgreSQL JSON column for flexible metadata
+        photoEntity.Property(p => p.Metadata)
+            .HasColumnName("metadata")
+            .HasColumnType("jsonb"); // PostgreSQL JSONB for performance
 
-            // Check constraint: File size must be positive
-            entity.HasCheckConstraint("CK_Photos_FileSizeBytes", 
-                $"FileSizeBytes > 0 AND FileSizeBytes <= {PhotoConstants.MaxFileSizeBytes}");
+        // PostgreSQL array for tags
+        photoEntity.Property(p => p.Tags)
+            .HasColumnName("tags")
+            .HasColumnType("text[]"); // PostgreSQL array
 
-            // Check constraint: Image dimensions must be positive
-            entity.HasCheckConstraint("CK_Photos_Dimensions", 
-                "Width > 0 AND Height > 0");
+        // Hash for duplicate detection
+        photoEntity.Property(p => p.ContentHash)
+            .HasColumnName("content_hash")
+            .HasMaxLength(64);
 
-            // Check constraint: Display order must be positive
-            entity.HasCheckConstraint("CK_Photos_DisplayOrder", 
-                "DisplayOrder > 0");
+        // Indexes for performance
+        photoEntity.HasIndex(p => p.UserId)
+            .HasDatabaseName("ix_photos_user_id");
 
-            // Check constraint: Quality score range
-            entity.HasCheckConstraint("CK_Photos_QualityScore", 
-                "QualityScore >= 1 AND QualityScore <= 100");
+        photoEntity.HasIndex(p => new { p.UserId, p.IsDeleted, p.DisplayOrder })
+            .HasDatabaseName("ix_photos_user_active_display_order");
 
-            // Check constraint: Valid moderation status
-            entity.HasCheckConstraint("CK_Photos_ModerationStatus",
-                "ModerationStatus IN ('AUTO_APPROVED', 'PENDING_REVIEW', 'APPROVED', 'REJECTED')");
+        photoEntity.HasIndex(p => new { p.UserId, p.IsPrimary, p.IsDeleted })
+            .HasDatabaseName("ix_photos_user_primary_active");
 
-            // Check constraint: Logical deletion consistency
-            entity.HasCheckConstraint("CK_Photos_Deletion_Logic",
-                "(IsDeleted = 0 AND DeletedAt IS NULL) OR (IsDeleted = 1 AND DeletedAt IS NOT NULL)");
-        });
+        photoEntity.HasIndex(p => p.ContentHash)
+            .HasDatabaseName("ix_photos_content_hash");
 
-        // ================================
-        // SEED DATA FOR DEVELOPMENT
-        // Test data for local development environment
-        // ================================
-        
-        // Note: Seed data would be added here for development
-        // Production environments should not include test photos
+        photoEntity.HasIndex(p => p.ModerationStatus)
+            .HasDatabaseName("ix_photos_moderation_status");
+
+        // PostgreSQL GIN index for JSONB metadata
+        photoEntity.HasIndex(p => p.Metadata)
+            .HasDatabaseName("ix_photos_metadata_gin")
+            .HasMethod("gin");
+
+        // PostgreSQL GIN index for text array tags
+        photoEntity.HasIndex(p => p.Tags)
+            .HasDatabaseName("ix_photos_tags_gin")
+            .HasMethod("gin");
+
+        // Constraints
+        photoEntity.HasCheckConstraint("ck_photos_quality_score_range", 
+            "quality_score >= 0 AND quality_score <= 100");
+        photoEntity.HasCheckConstraint("ck_photos_display_order_positive", 
+            "display_order > 0");
+        photoEntity.HasCheckConstraint("ck_photos_dimensions_positive", 
+            "width > 0 AND height > 0");
+        photoEntity.HasCheckConstraint("ck_photos_file_size_positive", 
+            "file_size_bytes > 0");
+    }
+
+    private void ConfigurePhotoProcessingJobEntity(ModelBuilder modelBuilder)
+    {
+        var jobEntity = modelBuilder.Entity<PhotoProcessingJob>();
+
+        jobEntity.ToTable("photo_processing_jobs");
+
+        jobEntity.HasKey(j => j.Id);
+        jobEntity.Property(j => j.Id)
+            .HasColumnName("id")
+            .UseIdentityByDefaultColumn();
+
+        jobEntity.Property(j => j.PhotoId)
+            .HasColumnName("photo_id")
+            .IsRequired();
+
+        jobEntity.Property(j => j.JobType)
+            .HasColumnName("job_type")
+            .HasMaxLength(50)
+            .IsRequired();
+
+        jobEntity.Property(j => j.Status)
+            .HasColumnName("status")
+            .HasMaxLength(20)
+            .HasDefaultValue("PENDING")
+            .IsRequired();
+
+        jobEntity.Property(j => j.Parameters)
+            .HasColumnName("parameters")
+            .HasColumnType("jsonb");
+
+        jobEntity.Property(j => j.Result)
+            .HasColumnName("result")
+            .HasColumnType("jsonb");
+
+        jobEntity.Property(j => j.ErrorMessage)
+            .HasColumnName("error_message")
+            .HasMaxLength(1000);
+
+        jobEntity.Property(j => j.CreatedAt)
+            .HasColumnName("created_at")
+            .HasColumnType("timestamp with time zone")
+            .HasDefaultValueSql("CURRENT_TIMESTAMP")
+            .IsRequired();
+
+        jobEntity.Property(j => j.StartedAt)
+            .HasColumnName("started_at")
+            .HasColumnType("timestamp with time zone");
+
+        jobEntity.Property(j => j.CompletedAt)
+            .HasColumnName("completed_at")
+            .HasColumnType("timestamp with time zone");
+
+        // Foreign key relationship
+        jobEntity.HasOne<Photo>()
+            .WithMany()
+            .HasForeignKey(j => j.PhotoId)
+            .HasConstraintName("fk_photo_processing_jobs_photo_id")
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Indexes
+        jobEntity.HasIndex(j => j.PhotoId)
+            .HasDatabaseName("ix_photo_processing_jobs_photo_id");
+
+        jobEntity.HasIndex(j => j.Status)
+            .HasDatabaseName("ix_photo_processing_jobs_status");
+
+        jobEntity.HasIndex(j => j.CreatedAt)
+            .HasDatabaseName("ix_photo_processing_jobs_created_at");
+    }
+
+    private void ConfigurePhotoModerationLogEntity(ModelBuilder modelBuilder)
+    {
+        var logEntity = modelBuilder.Entity<PhotoModerationLog>();
+
+        logEntity.ToTable("photo_moderation_logs");
+
+        logEntity.HasKey(l => l.Id);
+        logEntity.Property(l => l.Id)
+            .HasColumnName("id")
+            .UseIdentityByDefaultColumn();
+
+        logEntity.Property(l => l.PhotoId)
+            .HasColumnName("photo_id")
+            .IsRequired();
+
+        logEntity.Property(l => l.PreviousStatus)
+            .HasColumnName("previous_status")
+            .HasMaxLength(20);
+
+        logEntity.Property(l => l.NewStatus)
+            .HasColumnName("new_status")
+            .HasMaxLength(20)
+            .IsRequired();
+
+        logEntity.Property(l => l.ModeratorId)
+            .HasColumnName("moderator_id");
+
+        logEntity.Property(l => l.Reason)
+            .HasColumnName("reason")
+            .HasMaxLength(500);
+
+        logEntity.Property(l => l.Notes)
+            .HasColumnName("notes")
+            .HasMaxLength(1000);
+
+        logEntity.Property(l => l.CreatedAt)
+            .HasColumnName("created_at")
+            .HasColumnType("timestamp with time zone")
+            .HasDefaultValueSql("CURRENT_TIMESTAMP")
+            .IsRequired();
+
+        // Foreign key relationship
+        logEntity.HasOne<Photo>()
+            .WithMany()
+            .HasForeignKey(l => l.PhotoId)
+            .HasConstraintName("fk_photo_moderation_logs_photo_id")
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Indexes
+        logEntity.HasIndex(l => l.PhotoId)
+            .HasDatabaseName("ix_photo_moderation_logs_photo_id");
+
+        logEntity.HasIndex(l => l.ModeratorId)
+            .HasDatabaseName("ix_photo_moderation_logs_moderator_id");
+
+        logEntity.HasIndex(l => l.CreatedAt)
+            .HasDatabaseName("ix_photo_moderation_logs_created_at");
     }
 
     /// <summary>
     /// Override SaveChanges to handle automatic timestamp updates
-    /// Standard pattern for audit trail maintenance
     /// </summary>
-    /// <returns>Number of affected records</returns>
     public override int SaveChanges()
     {
         UpdateTimestamps();
@@ -183,10 +321,7 @@ public class PhotoContext : DbContext
 
     /// <summary>
     /// Override SaveChangesAsync to handle automatic timestamp updates
-    /// Async version of SaveChanges with timestamp handling
     /// </summary>
-    /// <param name="cancellationToken">Cancellation token for async operations</param>
-    /// <returns>Number of affected records</returns>
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         UpdateTimestamps();
@@ -195,7 +330,6 @@ public class PhotoContext : DbContext
 
     /// <summary>
     /// Automatically update timestamps on entity changes
-    /// Handles UpdatedAt and DeletedAt timestamp management
     /// </summary>
     private void UpdateTimestamps()
     {
@@ -206,7 +340,6 @@ public class PhotoContext : DbContext
             switch (entry.State)
             {
                 case EntityState.Modified:
-                    // Update timestamp for any modification
                     entry.Entity.UpdatedAt = DateTime.UtcNow;
                     break;
 

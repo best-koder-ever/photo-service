@@ -1,0 +1,16 @@
+/home/m/development/DatingApp/photo-service/PhotoService.csproj : warning NU1903: Package 'SixLabors.ImageSharp' 3.1.6 has a known high severity vulnerability, https://github.com/advisories/GHSA-2cmq-823j-5qj8
+/home/m/development/DatingApp/photo-service/PhotoService.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.6 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-rxmq-m78w-7wmc
+/home/m/development/DatingApp/photo-service/PhotoService.csproj : warning NU1903: Package 'SixLabors.ImageSharp' 3.1.6 has a known high severity vulnerability, https://github.com/advisories/GHSA-2cmq-823j-5qj8
+/home/m/development/DatingApp/photo-service/PhotoService.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.6 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-rxmq-m78w-7wmc
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://localhost:8085
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+info: Microsoft.Hosting.Lifetime[0]
+      Hosting environment: Production
+info: Microsoft.Hosting.Lifetime[0]
+      Content root path: /home/m/development/DatingApp/photo-service
+warn: Microsoft.AspNetCore.HttpsPolicy.HttpsRedirectionMiddleware[3]
+      Failed to determine the https port for redirect.
+info: Microsoft.Hosting.Lifetime[0]
+      Application is shutting down...
