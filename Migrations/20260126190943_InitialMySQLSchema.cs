@@ -41,7 +41,7 @@ namespace PhotoService.Migrations
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     BlurIntensity = table.Column<double>(type: "double", nullable: false),
                     RequiresMatch = table.Column<bool>(type: "tinyint(1)", nullable: false),
-                    created_at = table.Column<DateTime>(type: "datetime(6)", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP"),
+                    created_at = table.Column<DateTime>(type: "datetime(6)", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP(6)"),
                     updated_at = table.Column<DateTime>(type: "datetime(6)", nullable: true),
                     is_deleted = table.Column<bool>(type: "tinyint(1)", nullable: false, defaultValue: false),
                     deleted_at = table.Column<DateTime>(type: "datetime(6)", nullable: true),
@@ -87,7 +87,7 @@ namespace PhotoService.Migrations
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     notes = table.Column<string>(type: "varchar(1000)", maxLength: 1000, nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    created_at = table.Column<DateTime>(type: "datetime(6)", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP")
+                    created_at = table.Column<DateTime>(type: "datetime(6)", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP(6)")
                 },
                 constraints: table =>
                 {
@@ -118,7 +118,7 @@ namespace PhotoService.Migrations
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     error_message = table.Column<string>(type: "varchar(1000)", maxLength: 1000, nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    created_at = table.Column<DateTime>(type: "datetime(6)", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP"),
+                    created_at = table.Column<DateTime>(type: "datetime(6)", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP(6)"),
                     started_at = table.Column<DateTime>(type: "datetime(6)", nullable: true),
                     completed_at = table.Column<DateTime>(type: "datetime(6)", nullable: true)
                 },
@@ -169,20 +169,20 @@ namespace PhotoService.Migrations
                 table: "photos",
                 column: "content_hash");
 
-            migrationBuilder.CreateIndex(
-                name: "ix_photos_metadata",
-                table: "photos",
-                column: "metadata");
+//            migrationBuilder.CreateIndex(
+//                name: "ix_photos_metadata",
+//                table: "photos",
+//                column: "metadata");
 
             migrationBuilder.CreateIndex(
                 name: "ix_photos_moderation_status",
                 table: "photos",
                 column: "moderation_status");
 
-            migrationBuilder.CreateIndex(
-                name: "ix_photos_tags",
-                table: "photos",
-                column: "tags");
+//            migrationBuilder.CreateIndex(
+//                name: "ix_photos_tags",
+//                table: "photos",
+//                column: "tags");
 
             migrationBuilder.CreateIndex(
                 name: "ix_photos_user_active_display_order",

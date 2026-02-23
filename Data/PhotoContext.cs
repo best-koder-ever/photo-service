@@ -105,7 +105,7 @@ public class PhotoContext : DbContext
         // Timestamps - PostgreSQL-optimized
         photoEntity.Property(p => p.CreatedAt)
             .HasColumnName("created_at")
-            .HasDefaultValueSql("CURRENT_TIMESTAMP")
+            .HasDefaultValueSql("CURRENT_TIMESTAMP(6)")
             .IsRequired();
 
         photoEntity.Property(p => p.UpdatedAt)
@@ -181,14 +181,14 @@ public class PhotoContext : DbContext
         photoEntity.HasIndex(p => new { p.ModerationStatus, p.IsDeleted, p.CreatedAt })
             .HasDatabaseName("ix_photos_moderation_queue");
 
-        // Index for JSONB metadata (standard index for MySQL)
-        photoEntity.HasIndex(p => p.Metadata)
-            .HasDatabaseName("ix_photos_metadata");
-
-        // Index for tags (standard index for MySQL)
-        photoEntity.HasIndex(p => p.Tags)
-            .HasDatabaseName("ix_photos_tags");
-
+//        // Index for JSONB metadata (standard index for MySQL)
+//        photoEntity.HasIndex(p => p.Metadata)
+//            .HasDatabaseName("ix_photos_metadata");
+//
+//        // Index for tags (standard index for MySQL)
+//        photoEntity.HasIndex(p => p.Tags)
+//            .HasDatabaseName("ix_photos_tags");
+//
         // Constraints
         photoEntity.HasCheckConstraint("ck_photos_quality_score_range",
             "quality_score >= 0 AND quality_score <= 100");
@@ -241,7 +241,7 @@ public class PhotoContext : DbContext
 
         jobEntity.Property(j => j.CreatedAt)
             .HasColumnName("created_at")
-            .HasDefaultValueSql("CURRENT_TIMESTAMP")
+            .HasDefaultValueSql("CURRENT_TIMESTAMP(6)")
             .IsRequired();
 
         jobEntity.Property(j => j.StartedAt)
@@ -304,7 +304,7 @@ public class PhotoContext : DbContext
 
         logEntity.Property(l => l.CreatedAt)
             .HasColumnName("created_at")
-            .HasDefaultValueSql("CURRENT_TIMESTAMP")
+            .HasDefaultValueSql("CURRENT_TIMESTAMP(6)")
             .IsRequired();
 
         // Foreign key relationship
@@ -370,7 +370,7 @@ public class PhotoContext : DbContext
 
         entity.Property(v => v.CreatedAt)
             .HasColumnName("created_at")
-            .HasDefaultValueSql("CURRENT_TIMESTAMP").IsRequired();
+            .HasDefaultValueSql("CURRENT_TIMESTAMP(6)").IsRequired();
 
         entity.Property(v => v.UpdatedAt)
             .HasColumnName("updated_at");

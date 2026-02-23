@@ -47,7 +47,7 @@ namespace PhotoService.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
 
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("timestamp with time zone")
@@ -165,14 +165,14 @@ namespace PhotoService.Migrations
                     b.HasIndex("ContentHash")
                         .HasDatabaseName("ix_photos_content_hash");
 
-                    b.HasIndex("Metadata")
-                        .HasDatabaseName("ix_photos_metadata");
+//                    b.HasIndex("Metadata")
+//                        .HasDatabaseName("ix_photos_metadata");
 
                     b.HasIndex("ModerationStatus")
                         .HasDatabaseName("ix_photos_moderation_status");
 
-                    b.HasIndex("Tags")
-                        .HasDatabaseName("ix_photos_tags");
+//                    b.HasIndex("Tags")
+//                        .HasDatabaseName("ix_photos_tags");
 
                     b.HasIndex("UserId")
                         .HasDatabaseName("ix_photos_user_id");
@@ -208,7 +208,7 @@ namespace PhotoService.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
 
                     b.Property<int?>("ModeratorId")
                         .HasColumnType("int")
@@ -270,7 +270,7 @@ namespace PhotoService.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
 
                     b.Property<string>("ErrorMessage")
                         .HasMaxLength(1000)

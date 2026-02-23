@@ -29,7 +29,7 @@ public class VerificationDbContext : DbContext
             entity.Property(e => e.ProfilePhotoId);
             entity.Property(e => e.Result).HasMaxLength(50);
             entity.Property(e => e.RejectionReason).HasMaxLength(500);
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
             entity.HasIndex(e => e.UserId);
             entity.HasIndex(e => new { e.UserId, e.CreatedAt });
         });
