@@ -222,6 +222,7 @@ builder.Services.AddOpenTelemetry()
 
 // Register injectable business metrics
 builder.Services.AddSingleton<PhotoService.Metrics.PhotoServiceMetrics>();
+builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
@@ -274,7 +275,7 @@ app.UseImageSharp();
 // API Controllers
 app.MapControllers();
 
-// Health check now handled by HealthController
+app.MapHealthChecks("/health"); // Standard endpoint (HealthController still available at /api/health)
 
 // Prometheus metrics endpoint
 app.MapPrometheusScrapingEndpoint("/metrics");
