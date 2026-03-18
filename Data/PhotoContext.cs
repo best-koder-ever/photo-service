@@ -21,6 +21,7 @@ public class PhotoContext : DbContext
     public DbSet<PhotoModerationLog> PhotoModerationLogs { get; set; }
     public DbSet<VoicePrompt> VoicePrompts { get; set; }
     public DbSet<VoicePromptReport> VoicePromptReports { get; set; }
+    public DbSet<VoiceMessage> VoiceMessages { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

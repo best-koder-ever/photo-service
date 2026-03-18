@@ -293,13 +293,6 @@ if (app.Environment.IsDevelopment())
     }
 }
 
-// Force use environment URL if available
-var urls = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
-if (!string.IsNullOrEmpty(urls))
-{
-    app.Urls.Clear();
-    app.Urls.Add(urls);
-}
-
+// ASPNETCORE_URLS env var is handled by the framework automatically
 app.Run();
 
