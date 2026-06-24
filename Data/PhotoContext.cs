@@ -22,6 +22,8 @@ public class PhotoContext : DbContext
     public DbSet<VoicePrompt> VoicePrompts { get; set; }
     public DbSet<VoicePromptReport> VoicePromptReports { get; set; }
     public DbSet<VoiceMessage> VoiceMessages { get; set; }
+    public DbSet<VoiceQuestion> VoiceQuestions { get; set; }
+    public DbSet<VoiceAnswer> VoiceAnswers { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -33,6 +35,8 @@ public class PhotoContext : DbContext
         ConfigurePhotoModerationLogEntity(modelBuilder);
         ConfigureVoicePromptEntity(modelBuilder);
         ConfigureVoicePromptReportEntity(modelBuilder);
+        ConfigureVoiceQuestionEntity(modelBuilder);
+        ConfigureVoiceAnswerEntity(modelBuilder);
     }
 
     // Shared JSON converter for JsonDocument properties
@@ -449,6 +453,23 @@ public class PhotoContext : DbContext
                     break;
             }
         }
+
+        // VoiceAnswer timestamps
+        foreach (var entry in ChangeTracker.Entries<VoiceAnswer>())
+        {
+            switch (entry.State)
+            {
+                case EntityState.Modified:
+                    entry.Entity.UpdatedAt = DateTime.UtcNow;
+                    break;
+                case EntityState.Deleted:
+                    entry.State = EntityState.Modified;
+                    entry.Entity.IsDeleted = true;
+                    entry.Entity.DeletedAt = DateTime.UtcNow;
+                    entry.Entity.UpdatedAt = DateTime.UtcNow;
+                    break;
+            }
+        }
     }
 
     private void ConfigureVoicePromptReportEntity(ModelBuilder modelBuilder)
@@ -472,5 +493,125 @@ public class PhotoContext : DbContext
             entity.HasIndex(e => new { e.VoicePromptId, e.ReporterUserId }).IsUnique();
             entity.HasIndex(e => e.Status);
         });
+    }
+
+    private void ConfigureVoiceQuestionEntity(ModelBuilder modelBuilder)
+    {
+        var entity = modelBuilder.Entity<VoiceQuestion>();
+
+        entity.ToTable("voice_questions");
+
+        entity.HasKey(q => q.Id);
+        entity.Property(q => q.Id).HasColumnName("id");
+
+        entity.Property(q => q.QuestionText)
+            .HasColumnName("question_text").HasMaxLength(500).IsRequired();
+
+        entity.Property(q => q.QuestionTextEn)
+            .HasColumnName("question_text_en").HasMaxLength(500);
+
+        entity.Property(q => q.QuestionOrder)
+            .HasColumnName("question_order").IsRequired();
+
+        entity.Property(q => q.FlavorId)
+            .HasColumnName("flavor_id").HasMaxLength(50);
+
+        entity.Property(q => q.IsActive)
+            .HasColumnName("is_active").HasDefaultValue(true).IsRequired();
+
+        entity.Property(q => q.CreatedAt)
+            .HasColumnName("created_at")
+            .HasDefaultValueSql("CURRENT_TIMESTAMP(6)").IsRequired();
+
+        entity.HasIndex(q => new { q.FlavorId, q.IsActive, q.QuestionOrder })
+            .HasDatabaseName("ix_voice_questions_flavor_active_order");
+
+        // Seed data: 10 Swedish voice questions for the "voice" flavor
+        entity.HasData(
+            new VoiceQuestion { Id = 1, QuestionText = "Berätta om ditt bästa minne från i somras", QuestionTextEn = "Tell about your best memory from last summer", QuestionOrder = 1, FlavorId = "voice", IsActive = true, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+            new VoiceQuestion { Id = 2, QuestionText = "Vad gör dig genuint lycklig?", QuestionTextEn = "What makes you genuinely happy?", QuestionOrder = 2, FlavorId = "voice", IsActive = true, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+            new VoiceQuestion { Id = 3, QuestionText = "Beskriv din perfekta lördag", QuestionTextEn = "Describe your perfect Saturday", QuestionOrder = 3, FlavorId = "voice", IsActive = true, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+            new VoiceQuestion { Id = 4, QuestionText = "Vilken är den modigaste saken du gjort?", QuestionTextEn = "What's the bravest thing you've done?", QuestionOrder = 4, FlavorId = "voice", IsActive = true, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+            new VoiceQuestion { Id = 5, QuestionText = "Vad letar du efter i en partner?", QuestionTextEn = "What are you looking for in a partner?", QuestionOrder = 5, FlavorId = "voice", IsActive = true, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+            new VoiceQuestion { Id = 6, QuestionText = "Berätta om något du brinner för", QuestionTextEn = "Tell about something you're passionate about", QuestionOrder = 6, FlavorId = "voice", IsActive = true, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+            new VoiceQuestion { Id = 7, QuestionText = "Vad är din guilty pleasure?", QuestionTextEn = "What's your guilty pleasure?", QuestionOrder = 7, FlavorId = "voice", IsActive = true, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+            new VoiceQuestion { Id = 8, QuestionText = "Om du kunde åka vart som helst imorgon, vart?", QuestionTextEn = "If you could go anywhere tomorrow, where?", QuestionOrder = 8, FlavorId = "voice", IsActive = true, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+            new VoiceQuestion { Id = 9, QuestionText = "Vad gör dig unik?", QuestionTextEn = "What makes you unique?", QuestionOrder = 9, FlavorId = "voice", IsActive = true, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+            new VoiceQuestion { Id = 10, QuestionText = "Hur ser din drömframtid ut?", QuestionTextEn = "What does your dream future look like?", QuestionOrder = 10, FlavorId = "voice", IsActive = true, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
+        );
+    }
+
+    private void ConfigureVoiceAnswerEntity(ModelBuilder modelBuilder)
+    {
+        var entity = modelBuilder.Entity<VoiceAnswer>();
+
+        entity.ToTable("voice_answers");
+
+        entity.HasKey(a => a.Id);
+        entity.Property(a => a.Id).HasColumnName("id");
+
+        entity.Property(a => a.UserId).HasColumnName("user_id").IsRequired();
+
+        entity.Property(a => a.QuestionId).HasColumnName("question_id").IsRequired();
+
+        entity.Property(a => a.StoredFileName)
+            .HasColumnName("stored_file_name").HasMaxLength(255).IsRequired();
+
+        entity.Property(a => a.FileSizeBytes)
+            .HasColumnName("file_size_bytes").IsRequired();
+
+        entity.Property(a => a.DurationSeconds)
+            .HasColumnName("duration_seconds").IsRequired();
+
+        entity.Property(a => a.MimeType)
+            .HasColumnName("mime_type").HasMaxLength(50).IsRequired();
+
+        entity.Property(a => a.ModerationStatus)
+            .HasColumnName("moderation_status").HasMaxLength(20)
+            .HasDefaultValue("AUTO_APPROVED").IsRequired();
+
+        entity.Property(a => a.TranscriptText)
+            .HasColumnName("transcript_text").HasMaxLength(2000);
+
+        entity.Property(a => a.ContentHash)
+            .HasColumnName("content_hash").HasMaxLength(64);
+
+        entity.Property(a => a.CreatedAt)
+            .HasColumnName("created_at")
+            .HasDefaultValueSql("CURRENT_TIMESTAMP(6)").IsRequired();
+
+        entity.Property(a => a.UpdatedAt)
+            .HasColumnName("updated_at");
+
+        entity.Property(a => a.IsDeleted)
+            .HasColumnName("is_deleted").HasDefaultValue(false).IsRequired();
+
+        entity.Property(a => a.DeletedAt)
+            .HasColumnName("deleted_at");
+
+        // FK to VoiceQuestion
+        entity.HasOne(a => a.Question)
+            .WithMany()
+            .HasForeignKey(a => a.QuestionId)
+            .HasConstraintName("fk_voice_answers_question_id")
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // One answer per user per question (unique on non-deleted)
+        entity.HasIndex(a => new { a.UserId, a.QuestionId, a.IsDeleted })
+            .HasDatabaseName("ix_voice_answers_user_question_active")
+            .IsUnique()
+            .HasFilter("is_deleted = false");
+
+        entity.HasIndex(a => a.UserId)
+            .HasDatabaseName("ix_voice_answers_user_id");
+
+        entity.HasIndex(a => a.ModerationStatus)
+            .HasDatabaseName("ix_voice_answers_moderation_status");
+
+        // Constraints
+        entity.HasCheckConstraint("ck_voice_answers_duration_range",
+            "duration_seconds >= 3 AND duration_seconds <= 30");
+        entity.HasCheckConstraint("ck_voice_answers_file_size_positive",
+            "file_size_bytes > 0");
     }
 }

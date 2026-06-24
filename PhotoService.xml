@@ -306,6 +306,56 @@
             Get current verification status for the authenticated user.
             </summary>
         </member>
+        <member name="T:PhotoService.Controllers.VoiceAnswersController">
+             <summary>
+             Voice Answers API — questions pool + user answer upload/retrieval.
+             Used by the Voice flavor for blind dating onboarding.
+            
+             Flow:
+               GET /questions?flavorId=voice → get 10 questions (client picks 3)
+               POST /{questionId} → upload answer audio (AAC, 3-30s)
+               GET /my → get current user's answers
+               GET /user/{userId} → get another user's answers (for discovery cards)
+             </summary>
+        </member>
+        <member name="M:PhotoService.Controllers.VoiceAnswersController.GetQuestions(System.String)">
+            <summary>
+            Get available voice questions for a flavor.
+            GET /api/voice-answers/questions?flavorId=voice
+            </summary>
+        </member>
+        <member name="M:PhotoService.Controllers.VoiceAnswersController.Upload(System.Int32,Microsoft.AspNetCore.Http.IFormFile)">
+            <summary>
+            Upload a voice answer for a specific question.
+            Replaces existing answer for same question (soft-delete old one).
+            POST /api/voice-answers/{questionId}
+            </summary>
+        </member>
+        <member name="M:PhotoService.Controllers.VoiceAnswersController.GetMyAnswers">
+            <summary>
+            Get the current user's voice answers with question text.
+            GET /api/voice-answers/my
+            </summary>
+        </member>
+        <member name="M:PhotoService.Controllers.VoiceAnswersController.GetUserAnswers(System.Int32)">
+            <summary>
+            Get another user's voice answers (for discovery cards / blind dating).
+            Rejected answers are filtered out.
+            GET /api/voice-answers/user/{userId}
+            </summary>
+        </member>
+        <member name="M:PhotoService.Controllers.VoiceAnswersController.GetAudio(System.Int32)">
+            <summary>
+            Stream audio for a specific voice answer.
+            GET /api/voice-answers/{answerId}/audio
+            </summary>
+        </member>
+        <member name="M:PhotoService.Controllers.VoiceAnswersController.Delete(System.Int32)">
+            <summary>
+            Delete a specific voice answer.
+            DELETE /api/voice-answers/{answerId}
+            </summary>
+        </member>
         <member name="T:PhotoService.Controllers.VoiceMessagesController">
             <summary>
             Voice Messages API — upload and retrieve audio voice notes sent in chat.
@@ -1259,6 +1309,49 @@
             Tracks face verification attempts for self-hosted DeepFace badge system.
             </summary>
         </member>
+        <member name="T:PhotoService.Models.VoiceAnswer">
+            <summary>
+            Voice answer entity — a user's recorded answer to a voice question.
+            Multiple answers per user (one per question). Used for blind dating onboarding.
+            Follows same patterns as VoicePrompt (AAC audio, moderation, soft delete).
+            </summary>
+        </member>
+        <member name="P:PhotoService.Models.VoiceAnswer.UserId">
+            <summary>User profile ID (from UserService)</summary>
+        </member>
+        <member name="P:PhotoService.Models.VoiceAnswer.QuestionId">
+            <summary>FK to VoiceQuestion</summary>
+        </member>
+        <member name="P:PhotoService.Models.VoiceAnswer.Question">
+            <summary>Navigation property</summary>
+        </member>
+        <member name="P:PhotoService.Models.VoiceAnswer.StoredFileName">
+            <summary>Stored filename: {userId}_{questionId}_{timestamp}_{guid}.m4a</summary>
+        </member>
+        <member name="P:PhotoService.Models.VoiceAnswer.FileSizeBytes">
+            <summary>File size in bytes</summary>
+        </member>
+        <member name="P:PhotoService.Models.VoiceAnswer.DurationSeconds">
+            <summary>Duration in seconds (server-validated)</summary>
+        </member>
+        <member name="P:PhotoService.Models.VoiceAnswer.MimeType">
+            <summary>MIME type — always audio/mp4 for AAC</summary>
+        </member>
+        <member name="P:PhotoService.Models.VoiceAnswer.ModerationStatus">
+            <summary>Content moderation status</summary>
+        </member>
+        <member name="P:PhotoService.Models.VoiceAnswer.TranscriptText">
+            <summary>Speech-to-text transcript for moderation review</summary>
+        </member>
+        <member name="P:PhotoService.Models.VoiceAnswer.ContentHash">
+            <summary>SHA-256 content hash for duplicate detection</summary>
+        </member>
+        <member name="P:PhotoService.Models.VoiceAnswer.FilePath">
+            <summary>Calculated file path for storage</summary>
+        </member>
+        <member name="P:PhotoService.Models.VoiceAnswer.Url">
+            <summary>Public URL for audio access</summary>
+        </member>
         <member name="T:PhotoService.Models.VoiceMessage">
             <summary>
             Voice message entity — audio sent in chat, stored as AAC.
@@ -1349,6 +1442,27 @@
         </member>
         <member name="P:PhotoService.Models.VoicePromptReport.Status">
             <summary>Report status: pending, reviewed, dismissed</summary>
+        </member>
+        <member name="T:PhotoService.Models.VoiceQuestion">
+            <summary>
+            Voice question entity — a pool of questions users answer during onboarding.
+            Questions are flavor-scoped (nullable FlavorId means available to all flavors).
+            </summary>
+        </member>
+        <member name="P:PhotoService.Models.VoiceQuestion.QuestionText">
+            <summary>Question text shown to the user (Swedish primary, English fallback)</summary>
+        </member>
+        <member name="P:PhotoService.Models.VoiceQuestion.QuestionTextEn">
+            <summary>English translation for i18n</summary>
+        </member>
+        <member name="P:PhotoService.Models.VoiceQuestion.QuestionOrder">
+            <summary>Display order when presenting questions</summary>
+        </member>
+        <member name="P:PhotoService.Models.VoiceQuestion.FlavorId">
+            <summary>Flavor scope — null means available to all flavors</summary>
+        </member>
+        <member name="P:PhotoService.Models.VoiceQuestion.IsActive">
+            <summary>Whether this question is active (can be shown to users)</summary>
         </member>
         <member name="T:PhotoService.Services.IFaceVerificationService">
             <summary>
