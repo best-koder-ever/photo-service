@@ -82,3 +82,6 @@ secrets.json
 *.swp
 *.swo
 .tmp
+
+## User uploads (never commit to git)
+wwwroot/uploads/
