@@ -154,6 +154,10 @@ builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddCorrelationIds();
 
+// Profile-id resolver — voice prompts bind uploads to the real UserService
+// ProfileId (via gateway /api/profiles/me) instead of a token hash.
+builder.Services.AddScoped<IProfileIdResolver, ProfileIdResolver>();
+
 // CORS: config-driven origins — AllowAnyOrigin in dev, restricted in staging/production
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
 builder.Services.AddCors(options =>

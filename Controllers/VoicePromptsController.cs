@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PhotoService.Data;
 using PhotoService.Models;
+using PhotoService.Services;
 using System.Security.Claims;
 using System.Security.Cryptography;
 
@@ -28,11 +29,16 @@ public class VoicePromptsController : ControllerBase
 {
     private readonly PhotoContext _context;
     private readonly ILogger<VoicePromptsController> _logger;
+    private readonly IProfileIdResolver? _profileIdResolver;
 
-    public VoicePromptsController(PhotoContext context, ILogger<VoicePromptsController> logger)
+    public VoicePromptsController(
+        PhotoContext context,
+        ILogger<VoicePromptsController> logger,
+        IProfileIdResolver? profileIdResolver = null)
     {
         _context = context;
         _logger = logger;
+        _profileIdResolver = profileIdResolver;
     }
 
     /// <summary>
@@ -49,7 +55,10 @@ public class VoicePromptsController : ControllerBase
     {
         try
         {
-            var userId = GetCurrentUserId();
+            var resolvedUserId = await TryGetCurrentUserIdAsync();
+            if (resolvedUserId == null)
+                return Unauthorized("Unable to determine user identity");
+            var userId = resolvedUserId.Value;
 
             // ── Validate ──
             if (audio == null || audio.Length == 0)
@@ -150,8 +159,10 @@ public class VoicePromptsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetAudio()
     {
-        var userId = GetCurrentUserId();
-        return await ServeAudioForUser(userId);
+        var resolvedUserId = await TryGetCurrentUserIdAsync();
+        if (resolvedUserId == null)
+            return Unauthorized("Unable to determine user identity");
+        return await ServeAudioForUser(resolvedUserId.Value);
     }
 
     /// <summary>
@@ -202,7 +213,10 @@ public class VoicePromptsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete()
     {
-        var userId = GetCurrentUserId();
+        var resolvedUserId = await TryGetCurrentUserIdAsync();
+        if (resolvedUserId == null)
+            return Unauthorized("Unable to determine user identity");
+        var userId = resolvedUserId.Value;
         var vp = await _context.VoicePrompts
             .Where(v => v.UserId == userId && !v.IsDeleted)
             .FirstOrDefaultAsync();
@@ -231,7 +245,10 @@ public class VoicePromptsController : ControllerBase
     {
         try
         {
-            var reporterUserId = GetCurrentUserId();
+            var resolvedReporterUserId = await TryGetCurrentUserIdAsync();
+            if (resolvedReporterUserId == null)
+                return Unauthorized("Unable to determine user identity");
+            var reporterUserId = resolvedReporterUserId.Value;
 
             if (reporterUserId == targetUserId)
                 return BadRequest("Cannot report your own voice prompt");
@@ -310,19 +327,30 @@ public class VoicePromptsController : ControllerBase
         return PhysicalFile(Path.GetFullPath(filePath), vp.MimeType, enableRangeProcessing: true);
     }
 
-    private int GetCurrentUserId()
+    /// <summary>
+    /// Resolve the current caller's int profile id.
+    /// 1) A numeric claim is returned as-is (tests + legacy numeric-id tokens).
+    /// 2) Otherwise resolve the Keycloak UUID to the UserService ProfileId via
+    ///    <see cref="IProfileIdResolver"/> (forwarding the caller's bearer token).
+    /// Returns null when identity cannot be established (callers fail closed with 401).
+    /// </summary>
+    private async Task<int?> TryGetCurrentUserIdAsync()
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                        ?? User.FindFirst("sub")?.Value
                        ?? User.FindFirst("userId")?.Value;
 
         if (string.IsNullOrEmpty(userIdClaim))
-            throw new UnauthorizedAccessException("Unable to determine user identity");
+            return null;
 
         if (int.TryParse(userIdClaim, out var userId))
             return userId;
 
-        return Math.Abs(userIdClaim.GetHashCode());
+        if (_profileIdResolver == null)
+            return null;
+
+        var authorizationHeader = Request.Headers["Authorization"].FirstOrDefault();
+        return await _profileIdResolver.ResolveProfileIdAsync(authorizationHeader, HttpContext.RequestAborted);
     }
 }
 
